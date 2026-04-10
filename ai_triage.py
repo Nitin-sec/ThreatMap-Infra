@@ -16,6 +16,12 @@ except ImportError:
     _REQ = False
 
 SLM_MODELS = {
+    "qwen-3b": {
+        "repo_id":"Qwen/Qwen2.5-3B-Instruct-GGUF",
+        "filename":"qwen2.5-3b-instruct-q4_k_m.gguf",
+        "desc":"Qwen2.5-3B Q4_K_M ~2GB — best quality",
+        "n_ctx":4096,"chat_fmt":"chatml"
+    },
     "qwen-1.5b": {"repo_id":"Qwen/Qwen2.5-1.5B-Instruct-GGUF","filename":"qwen2.5-1.5b-instruct-q4_k_m.gguf","desc":"Qwen2.5-1.5B Q4_K_M ~1GB VM-safe","n_ctx":4096,"chat_fmt":"chatml"},
     "phi3-mini": {"repo_id":"microsoft/Phi-3-mini-4k-instruct-gguf","filename":"Phi-3-mini-4k-instruct-q4.gguf","desc":"Phi-3-mini Q4 ~2.2GB higher quality","n_ctx":4096,"chat_fmt":"chatml"},
 }

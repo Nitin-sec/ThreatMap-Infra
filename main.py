@@ -1,11 +1,3 @@
-from rich.console import Console
-from rich.panel import Panel
-console = Console()
-
-def banner():
-    console.print(Panel.fit("[bold red]THREATMAP INFRA[/bold red]\n[dim]VAPT Scanner & EASM Tool[/dim]", border_style="red"))
-
-banner()
 
 from rich.console import Console
 from rich.panel import Panel
