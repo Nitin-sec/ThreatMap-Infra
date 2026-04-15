@@ -31,16 +31,16 @@ from rich.progress import (
 )
 from rich import box
 
-from scanner_core import (
+from core.scanner_core import (
     Target, ScannerKit, ParallelOrchestrator,
     MODE_BALANCED, MODE_AGGRESSIVE,
 )
-from report_parser import ThreatMapParser
-from db_manager import DBManager
-from evidence_collector import EvidenceCollector
-from report_generator import generate_excel
-from ai_triage import run_ai_triage
-from authorization_gate import AuthorizationGate
+from core.report_parser import ThreatMapParser
+from core.db_manager import DBManager
+from core.evidence_collector import EvidenceCollector
+from core.report_generator import generate_excel
+from core.ai_triage import run_ai_triage
+from core.authorization_gate import AuthorizationGate
 
 console = Console()
 

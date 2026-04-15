@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV="$SCRIPT_DIR/.venv"
+
+if [ ! -d "$VENV" ]; then
+    echo "[!] Tool not installed."
+    echo "Run: ./install.sh"
+    exit 1
+fi
+
+source "$VENV/bin/activate"
+
+export PYTHONPATH="$SCRIPT_DIR"
+
+echo ""
+echo "Launching ThreatMap Infra..."
+echo ""
+
+python -m core.main "$@"

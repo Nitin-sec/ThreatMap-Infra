@@ -43,7 +43,7 @@ except ImportError:
 logger = logging.getLogger("threatmap.evidence")
 
 if TYPE_CHECKING:
-    from db_manager import DBManager
+    from core.db_manager import DBManager
 
 
 # ---------------------------------------------------------------------------

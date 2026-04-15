@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 logger = logging.getLogger("threatmap.triage")
 if TYPE_CHECKING:
-    from db_manager import DBManager
+    from core.db_manager import DBManager
 try:
     import requests as _req
     _REQ = True
