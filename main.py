@@ -85,7 +85,15 @@ def _banner() -> None:
     info.add_row("[dim]AI Analysis[/dim]", "[white]Optional Enhancement[/white]")
     console.print(info)
     console.print()
-    console.print(Rule(style="dim red"))
+    # console.print(Rule(style="dim red"))
+    console.print(
+        Panel.fit(
+            "[bold]Scan Results[/bold]",
+            border_style="dim",
+            padding=(0, 2)
+        ),
+        justify="left"
+    )
     console.print()
 
 
