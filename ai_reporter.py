@@ -19,6 +19,7 @@ Outputs:
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -88,41 +89,45 @@ def _confidence_from_cvss(cvss: float) -> str:
 
 # ── AI explanation (per finding) ─────────────────────────────────────────────
 
-def _explain_finding(finding: Finding, use_slm: bool) -> str:
+def _explain_finding(finding: Finding, use_slm: bool) -> dict[str, str]:
     """
-    Ask AI to explain one finding in plain language.
-    Returns plain text explanation or "" on failure.
-
-    Prompt is strict: AI may only explain what the scan found.
+    Ask SLM for a structured explanation for one finding.
+    Returns parsed fields or an empty dict on failure.
     """
     prompt = (
-        "You are a cybersecurity analyst writing a clear, plain-language explanation "
-        "for a developer who is not a security expert.\n\n"
-        "SCAN FINDING (do not invent anything beyond this data):\n"
+        "You are a cybersecurity analyst writing a concise, structured finding summary "
+        "for a developer who is not a security expert. Reply ONLY with valid JSON.\n\n"
+        "FINDING:\n"
         f"  Host:     {finding.host}\n"
         f"  Port:     {finding.port}/TCP\n"
+        "  Protocol: TCP\n"
         f"  Service:  {finding.service}\n"
-        f"  Severity: {finding.severity} (CVSS {finding.cvss})\n"
-        f"  Finding:  {finding.observation}\n"
+        f"  Observed issue: {finding.observation}\n"
         f"  Detail:   {finding.detail}\n\n"
-        "Write 2-3 sentences explaining:\n"
-        "1. What this finding means in plain terms\n"
-        "2. Why it matters to the business\n"
-        "3. One concrete first step to fix it\n\n"
-        "RULES:\n"
-        "- Do NOT mention CVEs unless they appeared in the scan data above\n"
-        "- Do NOT assume any vulnerability not stated in the data\n"
-        "- If you are unsure about anything, say 'Needs manual verification'\n"
-        "- Keep it under 100 words\n"
-        "- No markdown, no headers — plain text only"
+        "Write one unique, expert explanation for this finding.\n"
+        "Do not repeat remediation text across different findings.\n"
+        "Do not use generic or templated wording.\n"
+        "Provide practical advice that can be actioned by a development or operations team.\n\n"
+        "Return JSON with exactly these keys: explanation, risk, remediation, confidence.\n"
+        "Example format:\n"
+        "{\n"
+        '  "explanation": "1-2 sentences: what was found and why it matters.",\n'
+        '  "risk": "Specific business risk if the issue is exploited.",\n'
+        '  "remediation": "Concrete, service-specific fix steps.",\n'
+        '  "confidence": "High / Medium / Low"\n'
+        "}\n"
     )
 
     try:
         if use_slm:
-            return _call_slm(prompt)
+            raw = _call_slm(prompt)
+            if raw:
+                parsed = _parse_slm_explanation(raw)
+                if parsed.get("explanation") and parsed.get("remediation"):
+                    return parsed
     except Exception as exc:
         log.debug("[reporter] SLM explanation failed: %s", exc)
-    return ""
+    return {}
 
 
 def _call_slm(prompt: str) -> str:
@@ -152,9 +157,25 @@ def _call_slm(prompt: str) -> str:
          contextlib.redirect_stderr(io.StringIO()):
         r = _call_slm._llm.create_chat_completion(
             messages=[{"role":"user","content":prompt}],
-            max_tokens=200, temperature=0.2,
+            max_tokens=230, temperature=0.15,
         )
     return r["choices"][0]["message"]["content"].strip()
+
+
+def _parse_slm_explanation(raw: str) -> dict[str, str]:
+    clean = re.sub(r"^```(?:json)?\s*|```$", "", raw.strip(), flags=re.MULTILINE).strip()
+    if not clean:
+        return {}
+    try:
+        payload = json.loads(clean)
+        return {
+            "explanation": str(payload.get("explanation","")).strip(),
+            "risk": str(payload.get("risk","")).strip(),
+            "remediation": str(payload.get("remediation","")).strip(),
+            "confidence": str(payload.get("confidence","")).strip(),
+        }
+    except (json.JSONDecodeError, ValueError):
+        return {}
 
 
 # ── Template-based explanations (no AI required) ─────────────────────────────
@@ -188,14 +209,33 @@ _TEMPLATES: dict[str, str] = {
 
 def _template_explanation(finding: Finding) -> str:
     svc = finding.service.lower()
+    host = finding.host or "this host"
     for key, text in _TEMPLATES.items():
         if key in svc:
-            return text
+            return f"{text} On {host}:{finding.port}, verify that access is restricted and only required clients can connect."
     return (
-        f"Port {finding.port}/TCP is running {finding.service} and is accessible from "
-        f"the internet. Review whether this service needs to be publicly exposed. "
-        f"If not required externally, restrict access via firewall rules."
+        f"Port {finding.port}/TCP is running {finding.service} and is reachable from the internet. "
+        f"The open service should be reviewed for necessity and access should be restricted to reduce attack surface."
     )
+
+
+def _fallback_remediation(finding: Finding) -> str:
+    svc = finding.service.lower()
+    port = finding.port or "unknown"
+    host = finding.host or "the host"
+    if "ssh" in svc or port == "22":
+        return f"Restrict SSH access on {host}:{port} to trusted IP ranges, disable password authentication, enforce public-key auth, and enable adaptive login throttling."
+    if "http" in svc or port in {"80","8080"}:
+        return f"Force HTTPS for {host}:{port}, implement 301 redirects, enable HSTS, and block cleartext HTTP on the edge."
+    if "https" in svc or port in {"443","8443"}:
+        return f"Review TLS settings for {host}:{port}, disable weak ciphers and TLS 1.0/1.1, and enforce HSTS with a long max-age."
+    if "ftp" in svc or port == "21":
+        return f"Disable FTP on {host}:{port}. Replace it with SFTP/FTPS and block the service from public networks."
+    if "rdp" in svc or port == "3389":
+        return f"Block RDP from the public internet on {host}:{port}. Expose it only over VPN and require network level authentication."
+    if "mysql" in svc or port == "3306":
+        return f"Bind MySQL to localhost on {host}. Block external access to port 3306 and use stored credentials only from application servers."
+    return f"Assess the purpose of {finding.service} on {host}:{port}. Restrict or disable it if not required, and apply service-specific firewall rules."
 
 
 # ── Core report builder ───────────────────────────────────────────────────────
@@ -270,19 +310,25 @@ class AIReporter:
     def _enrich(self, report: ScanReport) -> None:
         """Add plain-language explanation to each finding."""
         for finding in report.findings:
+            parsed = {}
             if self.use_slm:
                 try:
-                    explanation = _explain_finding(finding, self.use_slm)
-                    if explanation:
-                        finding.ai_summary  = explanation
-                        finding.ai_enhanced = True
-                        continue
+                    parsed = _explain_finding(finding, self.use_slm)
                 except Exception as exc:
                     log.debug("[reporter] SLM failed for %s:%s — using template: %s",
                                 finding.host, finding.port, exc)
 
+            if parsed:
+                finding.ai_summary = parsed.get("explanation") or _template_explanation(finding)
+                finding.risk       = parsed.get("risk") or finding.risk
+                finding.remediation= parsed.get("remediation") or finding.remediation
+                finding.confidence= parsed.get("confidence") or finding.confidence
+                finding.ai_enhanced = True
+                continue
+
             # Template fallback (always works)
             finding.ai_summary  = _template_explanation(finding)
+            finding.remediation = _fallback_remediation(finding)
             finding.ai_enhanced = False
 
     # ── Output writers ────────────────────────────────────────────────────────

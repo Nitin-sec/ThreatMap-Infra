@@ -290,22 +290,25 @@ class TriageEngine:
 
     def _rule(self, finding):
         port = str(finding.get("port",""))
-        svc  = finding.get("service","").lower()
+        svc  = self._normalize_service(port, finding.get("service","").lower())
         cvss = float(finding.get("cvss_score") or PORT_CVSS.get(port, 0.0))
         sev,pri,sla = self._band(cvss)
         obs,mod = RULE_OBS.get(svc, DEFAULT_OBS)
         ver = finding.get("version","")
         if ver:
-            detail = "Port %s/TCP (%s) is publicly accessible, running %s." % (port, svc.upper(), ver)
+            detail = f"Host {finding.get('host','unknown')}:{port} is reachable and running {svc.upper()} ({ver})."
         else:
-            detail = "Port %s/TCP (%s) is publicly accessible." % (port, svc.upper())
+            detail = f"Host {finding.get('host','unknown')}:{port} is reachable and running {svc.upper()}."
+        recommendation = RULE_REC.get(svc, DEFAULT_REC)
+        recommendation = self._unique_recommendation(recommendation, finding.get("host",""), port)
+        risk = RULE_RISK.get(svc, DEFAULT_RISK)
         return {
             "severity":sev,"priority_rank":pri,"cvss_score":cvss,"actively_exploited":False,
             "observation_name":obs,"detailed_observation":detail,"impacted_module":mod,
-            "risk_impact":RULE_RISK.get(svc,DEFAULT_RISK),
-            "recommendation":RULE_REC.get(svc,DEFAULT_REC),
-            "risk_summary":detail,"business_impact":RULE_RISK.get(svc,DEFAULT_RISK),
-            "remediation":RULE_REC.get(svc,DEFAULT_REC),"attack_scenario":None,
+            "risk_impact":risk,
+            "recommendation":recommendation,
+            "risk_summary":detail,"business_impact":risk,
+            "remediation":recommendation,"attack_scenario":None,
             "false_positive_likelihood":"Low","triage_method":"rule_based","ai_enhanced":False,
         }
 
@@ -315,6 +318,22 @@ class TriageEngine:
                 return vals
         return ("Info",5,"Informational.")
 
+    def _normalize_service(self, port: str, svc: str) -> str:
+        if port == "8080":
+            return "http-alt"
+        if port == "8443":
+            return "https-alt"
+        if port == "443" and svc == "unknown":
+            return "https"
+        if port == "80" and svc == "unknown":
+            return "http"
+        return svc
+
+    def _unique_recommendation(self, recommendation: str, host: str, port: str) -> str:
+        if host and port:
+            return f"{recommendation} Apply this specifically to {host}:{port}."
+        return recommendation
+
     def _prompt(self, finding, base, ctx):
         tech   = ", ".join(ctx.get("tech",[]))  or "unknown"
         ports  = ctx.get("ports_summary","")
@@ -322,24 +341,29 @@ class TriageEngine:
                   "NO"  if ctx.get("waf") is False else "not checked")
         nuclei = "\n".join(ctx.get("nuclei",[])) or "none"
         server = ctx.get("server","") or "unknown"
+        observed = base.get("observation_name", "Unknown finding")
+        detail   = base.get("detailed_observation", "No additional detail provided.")
         title  = ctx.get("title","")  or "unknown"
         miss   = ", ".join(ctx.get("missing",[])) or "none"
         return (
             "You are a senior VAPT consultant writing detailed professional reports writing a professional pentest report.\n"
             "Rule engine found: %s (CVSS %.1f)\n\n" % (base["severity"], base["cvss_score"]) +
-            "FINDING:\n  Host: %s\n  Port: %s/TCP  Service: %s\n\n" % (finding["host"],finding["port"],finding["service"]) +
+            "FINDING:\n  Host: %s\n  Port: %s/TCP\n  Protocol: TCP\n  Service: %s\n  Observed issue: %s\n  Detail: %s\n\n" % (finding["host"],finding["port"],finding["service"], observed, detail) +
             "HOST CONTEXT:\n  Other ports: %s\n  Technologies: %s\n" % (ports,tech) +
             "  Server: %s | Title: %s\n  WAF: %s | Missing headers: %s\n\n" % (server,title,waf,miss) +
             "NUCLEI HITS:\n%s\n\n" % nuclei +
             "Write a concise, specific, professional assessment for THIS finding on THIS host.\n"
-            "Reference actual data. Sound like a human expert, not a template.\n\n"
-            "Return ONLY valid JSON - no markdown, no extra text:\n\n"
+            "Ensure the explanation is unique for each finding and avoid repeating identical remediation.\n"
+            "Use practical, actionable advice.\n\n"
+            "Return ONLY valid JSON - no markdown, no extra text.\n\n"
             "{\n"
-            '  "observation_name":     "Short professional title",\n'
-            '  "detailed_observation": "1-2 sentences: what exactly was found. Port, service, version if known.",\n'
-            '  "impacted_module":      "Remote Access / Web Server / Database / Mail Server / DNS Infrastructure / Application Layer / File Sharing / Network Service / Cache Layer",\n'
-            '  "risk_impact":          "1 sentence: specific business risk if exploited.",\n'
-            '  "recommendation":       "Prioritised fix steps with specific config or commands."\n'
+            '  "observation_name": "Short professional title",\n'
+            '  "detailed_observation": "1-2 sentences: what was found, including port and service.",\n'
+            '  "impacted_module": "Remote Access / Web Server / Database / Mail Server / DNS Infrastructure / Application Layer / File Sharing / Network Service / Cache Layer",\n'
+            '  "risk_impact": "Specific business risk if exploited.",\n'
+            '  "recommendation": "Concrete remediation steps with service details.",\n'
+            '  "explanation": "Short unique explanation of the issue.",\n'
+            '  "confidence": "High / Medium / Low"\n'
             "}"
         )
 
@@ -354,7 +378,12 @@ class TriageEngine:
             clean = re.sub(r"^```json\s*|^```\s*|```$","",raw.strip(),flags=re.MULTILINE).strip()
             m = re.search(r"\{.*\}",clean,re.DOTALL)
             if m: clean = m.group(0)
-            return json.loads(clean)
+            payload = json.loads(clean)
+            if "recommendation" in payload and "remediation" not in payload:
+                payload["remediation"] = payload["recommendation"]
+            if "risk" in payload and "risk_impact" not in payload:
+                payload["risk_impact"] = payload["risk"]
+            return payload
         except (json.JSONDecodeError,ValueError):
             return {}
 
