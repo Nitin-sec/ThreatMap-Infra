@@ -210,6 +210,10 @@ class ScanDirs:
         return str(self.raw)
 
     @property
+    def report_dir(self) -> str:
+        return str(self.report)
+
+    @property
     def evidence_dir(self) -> str:
         return str(self.evidence)
 
