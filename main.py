@@ -296,7 +296,7 @@ def main() -> bool:
     if not has_findings:
         _i(f"Scan log → [cyan]{dirs.log_file}[/cyan]")
         console.print()
-        return
+        return True
 
     console.print()
 
@@ -307,10 +307,18 @@ def main() -> bool:
         output_dir=save_dir,
     ).run()
 
+    return True
+
 
 if __name__ == "__main__":
     try:
-        main()
+        while True:
+            if not main():
+                break
+            if not _confirm_restart():
+                break
+            console.print()
+        console.print("  [green][[✔]][/green]  Goodbye.")
     except KeyboardInterrupt:
         console.print()
         console.print("  [yellow][[!]][/yellow]  Interrupted.")
