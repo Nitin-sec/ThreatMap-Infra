@@ -371,7 +371,7 @@ class ParallelOrchestrator:
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
             future_map = {
-                ex.submit(self._scan_single_host, h, dirs): h
+                ex.submit(self.scan_host, h, dirs): h
                 for h in hosts
             }
             for future in as_completed(future_map):
@@ -383,6 +383,12 @@ class ParallelOrchestrator:
                     results[host] = {"host": host, "error": str(exc),
                                      "nmap": [], "open_ports": []}
         return results
+
+    def scan_host(self, host: str, dirs: ScanDirs) -> dict:
+        """
+        Public host scan API used by callers outside this class.
+        """
+        return self._scan_single_host(host, dirs)
 
     def _scan_single_host(self, host: str, dirs: ScanDirs) -> dict:
         target = Target(host)

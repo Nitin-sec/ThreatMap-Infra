@@ -31,13 +31,13 @@ from scanner_core   import (
     Target, ScannerKit, ParallelOrchestrator,
     MODE_BALANCED, MODE_AGGRESSIVE,
 )
-from report_parser  import ThreatMapParser
 from db_manager     import DBManager
 from evidence_collector import EvidenceCollector
 from ai_triage      import run_ai_triage
 from ai_reporter    import generate_all_reports
 from cli_menu       import PostScanMenu
 from authorization_gate import AuthorizationGate
+from severity import SEVERITY_ORDER
 
 log     = get_logger("main")
 console = Console()
@@ -50,7 +50,7 @@ SEV_SLA   = {
     "Low":      "Quarterly review",
     "Info":     "Informational",
 }
-SEV_ORDER = ["Critical","High","Medium","Low","Info"]
+SEV_ORDER = [s.title() for s in SEVERITY_ORDER]
 
 Q = questionary.Style([
     ("qmark","fg:red bold"),("question","fg:white bold"),("answer","fg:cyan bold"),
@@ -135,8 +135,11 @@ def main() -> None:
     if not target_input: return
     console.print()
 
+    target = Target(target_input.strip())
+    dirs = ScanDirs.create(base="scans", target=target.domain)
+
     # 2. Authorization
-    if not AuthorizationGate().validate(target_input.strip()):
+    if not AuthorizationGate().validate(target_input.strip(), report_dir=dirs.report_dir):
         _e("Scan aborted."); return
     console.print()
 
@@ -185,11 +188,8 @@ def main() -> None:
     console.print()
 
     # 6. Setup
-    target = Target(target_input.strip())
-    dirs   = ScanDirs.create(base="scans", target=target.domain)
     configure_logging(verbose=False, log_file=dirs.log_file)
     log.info("scan started: target=%s mode=%s", target.domain, mode)
-    os.makedirs("reports", exist_ok=True)
 
     registry = ToolRegistry()
     all_ok, missing = registry.validate()
@@ -204,7 +204,6 @@ def main() -> None:
 
     db          = DBManager()
     scan_id     = db.init_scan(target=target.domain, scan_mode=mode, max_workers=4)
-    parser      = ThreatMapParser(target.domain)
     live_hosts  : list[str]     = []
     host_id_map : dict[str,int] = {}
 
@@ -238,7 +237,7 @@ def main() -> None:
         lock = threading.Lock()
 
         def _scan_one(host: str) -> None:
-            result = orchestrator._scan_single_host(host, dirs)
+            result = orchestrator.scan_host(host, dirs)
             with lock: scan_results[host] = result
             progress.advance(task_scan)
 
@@ -253,21 +252,19 @@ def main() -> None:
             host_id = db.upsert_host(scan_id, host, ht.domain)
             host_id_map[host] = host_id
             if result.get("nmap"): db.insert_ports(host_id, result["nmap"])
-            parser.parse_host_reports(host)
             progress.advance(task_db)
 
         http_hosts = [h for h in host_id_map if h.startswith("http")]
         task_ev = progress.add_task("Evidence collection", total=max(len(http_hosts),1))
         if http_hosts:
-            EvidenceCollector().probe_hosts(hosts=http_hosts, output_dir="reports")
+            EvidenceCollector().probe_hosts(hosts=http_hosts, output_dir=dirs.report_dir)
         progress.update(task_ev, completed=max(len(http_hosts),1))
 
         task_ai = progress.add_task("AI Triage", total=1)
         with contextlib.redirect_stderr(io.StringIO()):
-            run_ai_triage(db=db, scan_id=scan_id)
+            run_ai_triage(db=db, scan_id=scan_id, raw_dir=dirs.raw_dir, report_dir=dirs.report_dir)
         progress.advance(task_ai)
 
-        parser.save_and_cleanup()
         db.complete_scan(scan_id)
 
         task_rep = progress.add_task("Generating reports", total=1)
@@ -275,7 +272,7 @@ def main() -> None:
         progress.advance(task_rep)
 
     # 8. Summary
-    triage_rows  = db.get_all_triage()
+    triage_rows  = db.get_triage_by_scan(scan_id)
     has_findings = _show_summary(triage_rows, host_id_map)
 
     if not has_findings:

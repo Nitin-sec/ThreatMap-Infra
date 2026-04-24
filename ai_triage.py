@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 logger = logging.getLogger("threatmap.triage")
 if TYPE_CHECKING:
-    from core.db_manager import DBManager
+    from db_manager import DBManager
 try:
     import requests as _req
     _REQ = True
@@ -187,8 +187,10 @@ class SLMManager:
 
 class TriageEngine:
 
-    def __init__(self):
+    def __init__(self, raw_dir: str | None = None, report_dir: str | None = None):
         self.provider = LLMProvider.NONE
+        self.raw_dir = Path(raw_dir or ".")
+        self.report_dir = Path(report_dir or ".")
         self._slm = None
         if os.getenv("THREATMAP_SLM_DISABLE","") != "1":
             self._try_slm()
@@ -235,7 +237,7 @@ class TriageEngine:
 
     def run_for_scan(self, db, scan_id):
         self._ensure_columns(db)
-        db.clear_triage()
+        db.delete_triage_by_scan(scan_id)
         with db._conn() as conn:
             rows = conn.execute(
                 "SELECT h.id AS host_id, h.url AS host, h.domain, p.port, p.service "
@@ -287,22 +289,22 @@ class TriageEngine:
             host,domain = row["url"],row["domain"]
             ctx = {"ports_summary": row["ports_summary"] or ""}
             try:
-                waf = Path("reports/wafw00f_%s.txt" % domain).read_text()
+                waf = (self.raw_dir / ("wafw00f_%s.txt" % domain)).read_text()
                 ctx["waf"] = any(k in waf.lower() for k in ["is behind","detected"])
             except FileNotFoundError:
                 ctx["waf"] = None
             try:
-                data = json.loads(Path("reports/whatweb_%s.json" % domain).read_text())
+                data = json.loads((self.raw_dir / ("whatweb_%s.json" % domain)).read_text())
                 ctx["tech"] = list(set(p for e in data if "plugins" in e for p in e["plugins"]))[:12]
             except Exception:
                 ctx["tech"] = []
             try:
                 ctx["nuclei"] = [l.strip() for l in
-                    Path("reports/nuclei_%s.txt" % domain).read_text().splitlines()
+                    (self.raw_dir / ("nuclei_%s.txt" % domain)).read_text().splitlines()
                     if l.strip()][:15]
             except FileNotFoundError:
                 ctx["nuclei"] = []
-            evs = _g.glob("reports/evidence_%s*.json" % domain)
+            evs = _g.glob(str(self.report_dir / ("evidence_%s*.json" % domain)))
             if evs:
                 try:
                     d = json.loads(Path(evs[0]).read_text())
@@ -416,8 +418,8 @@ class TriageEngine:
             return {}
 
 
-def run_ai_triage(db, scan_id):
-    engine = TriageEngine()
+def run_ai_triage(db, scan_id, raw_dir=None, report_dir=None):
+    engine = TriageEngine(raw_dir=raw_dir, report_dir=report_dir)
     count  = engine.run_for_scan(db, scan_id)
     logger.info("[Triage] %d finding(s) via %s", count, engine.provider.value)
     return count

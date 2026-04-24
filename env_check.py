@@ -198,6 +198,18 @@ class ScanDirs:
     def log_file(self) -> str:
         return str(self.logs / "scan.log")
 
+    @property
+    def log_dir(self) -> str:
+        return str(self.logs)
+
+    @property
+    def raw_dir(self) -> str:
+        return str(self.raw)
+
+    @property
+    def report_dir(self) -> str:
+        return str(self.report)
+
     def raw_file(self, name: str) -> str:
         return str(self.raw / name)
 

@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Optional
 
 from scan_logger import get_logger
+from severity import SEVERITY_ORDER
 
 log = get_logger("reporter")
 
@@ -319,7 +320,7 @@ class AIReporter:
             log.warning("[reporter] meta fetch failed: %s", exc)
 
         # Fetch triage rows
-        triage_rows = db.get_all_triage()
+        triage_rows = db.get_triage_by_scan(scan_id)
         findings: list[Finding] = []
         for row in triage_rows:
             d = dict(row)
@@ -413,7 +414,7 @@ class AIReporter:
 
     def write_txt(self, report: ScanReport, path: str) -> str:
         """Write human-readable plain text report."""
-        SEV_ORDER = ["Critical","High","Medium","Low","Info"]
+        SEV_ORDER = [s.title() for s in SEVERITY_ORDER]
         lines = [
             "=" * 72,
             "  THREATMAP INFRA — VULNERABILITY ASSESSMENT REPORT",
@@ -482,7 +483,7 @@ class AIReporter:
 
     def write_html(self, report: ScanReport, path: str) -> str:
         """Write self-contained HTML report."""
-        SEV_ORDER = ["Critical","High","Medium","Low","Info"]
+        SEV_ORDER = [s.title() for s in SEVERITY_ORDER]
         badge_bg  = {
             "Critical":"#C0392B","High":"#E67E22",
             "Medium":"#F39C12","Low":"#27AE60","Info":"#2980B9",
