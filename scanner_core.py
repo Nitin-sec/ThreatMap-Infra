@@ -103,9 +103,16 @@ def run_subfinder(target: Target, dirs: ScanDirs) -> ToolResult:
         return ToolResult(tool="subfinder", status=ToolStatus.SKIPPED,
                           error="not installed")
     out = dirs.raw_file("subdomains.txt")
-    return run_tool("subfinder",
+    result = run_tool("subfinder",
                     [bin_path, "-d", target.domain, "-silent", "-o", out],
                     timeout=120)
+
+    # Save raw output to evidence
+    if result.ok and Path(out).exists():
+        content = Path(out).read_text()
+        Path(dirs.evidence / "subdomains.txt").write_text(content)
+
+    return result
 
 
 def run_assetfinder(target: Target, dirs: ScanDirs) -> ToolResult:
@@ -119,6 +126,11 @@ def run_assetfinder(target: Target, dirs: ScanDirs) -> ToolResult:
     if result.ok and result.stdout:
         out = dirs.raw_file("subdomains_af.txt")
         Path(out).write_text(result.stdout)
+
+    # Save raw output to evidence
+    if result.ok and result.stdout:
+        Path(dirs.evidence / "subdomains_af.txt").write_text(result.stdout)
+
     return result
 
 
@@ -137,9 +149,17 @@ def run_whois(target: Target, dirs: ScanDirs) -> ToolResult:
     bin_path = _tool("whois")
     if not bin_path:
         return ToolResult(tool="whois", status=ToolStatus.SKIPPED, error="not installed")
-    return run_tool("whois", [bin_path, target.domain],
+    result = run_tool("whois", [bin_path, target.domain],
                     timeout=20,
                     output_file=dirs.raw_file(f"whois_{target.domain}.txt"))
+
+    # Save raw output to evidence
+    out = dirs.raw_file(f"whois_{target.domain}.txt")
+    if result.ok and Path(out).exists():
+        content = Path(out).read_text()
+        Path(dirs.evidence / "whois.txt").write_text(content)
+
+    return result
 
 
 def run_dig(target: Target, dirs: ScanDirs) -> ToolResult:
@@ -155,8 +175,14 @@ def run_dig(target: Target, dirs: ScanDirs) -> ToolResult:
                      timeout=10)
         combined.append(f"\n=== {rtype} ===\n{r.stdout or '(none)'}")
     Path(out_path).write_text("\n".join(combined))
-    return ToolResult(tool="dig", status=ToolStatus.SUCCESS,
+    result = ToolResult(tool="dig", status=ToolStatus.SUCCESS,
                       stdout="\n".join(combined))
+
+    # Save raw output to evidence
+    if result.ok and result.stdout:
+        Path(dirs.evidence / "dig.txt").write_text(result.stdout)
+
+    return result
 
 
 def run_nmap(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> ToolResult:
@@ -200,6 +226,10 @@ def run_nmap(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> ToolR
         log.warning("[nmap] primary timed out, running fallback")
         result = run_tool("nmap:fallback", fallback_cmd, timeout=timeout // 2)
 
+    # Save raw output to evidence
+    if result.ok and result.stdout:
+        Path(dirs.evidence / "nmap.txt").write_text(result.stdout)
+
     return result
 
 
@@ -209,10 +239,17 @@ def run_whatweb(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> To
     if not bin_path:
         return ToolResult(tool="whatweb", status=ToolStatus.SKIPPED, error="not installed")
     out = dirs.raw_file(f"whatweb_{target.domain}.json")
-    return run_tool("whatweb",
+    result = run_tool("whatweb",
                     [bin_path, "-v", "--user-agent", _ua(),
                      f"--log-json={out}", target.url],
                     timeout=60)
+
+    # Save raw output to evidence
+    if result.ok and Path(out).exists():
+        content = Path(out).read_text()
+        Path(dirs.evidence / "whatweb.json").write_text(content)
+
+    return result
 
 
 def run_wafw00f(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> ToolResult:
@@ -220,10 +257,18 @@ def run_wafw00f(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> To
     bin_path = _tool("wafw00f")
     if not bin_path:
         return ToolResult(tool="wafw00f", status=ToolStatus.SKIPPED, error="not installed")
-    return run_tool("wafw00f",
+    result = run_tool("wafw00f",
                     [bin_path, "-a", target.url],
                     timeout=30,
                     output_file=dirs.raw_file(f"wafw00f_{target.domain}.txt"))
+
+    # Save raw output to evidence
+    out = dirs.raw_file(f"wafw00f_{target.domain}.txt")
+    if result.ok and Path(out).exists():
+        content = Path(out).read_text()
+        Path(dirs.evidence / "wafw00f.txt").write_text(content)
+
+    return result
 
 
 def run_nikto(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> ToolResult:
@@ -233,13 +278,20 @@ def run_nikto(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> Tool
         return ToolResult(tool="nikto", status=ToolStatus.SKIPPED, error="not installed")
     maxtime = "5m" if mode == MODE_AGGRESSIVE else "3m"
     out = dirs.raw_file(f"nikto_{target.domain}.txt")
-    return run_tool("nikto",
+    result = run_tool("nikto",
                     ["nikto", "-h", target.url,
                      "-useragent", _ua(),
                      "-output", out,
                      "-maxtime", maxtime,
                      "-nointeractive"],
                     timeout=360)
+
+    # Save raw output to evidence
+    if result.ok and Path(out).exists():
+        content = Path(out).read_text()
+        Path(dirs.evidence / "nikto.txt").write_text(content)
+
+    return result
 
 
 def run_gobuster(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> ToolResult:
@@ -267,7 +319,7 @@ def run_gobuster(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> T
 
     out      = dirs.raw_file(f"gobuster_{target.domain}.txt")
     threads  = "80" if mode == MODE_AGGRESSIVE else "50"
-    return run_tool("gobuster",
+    result = run_tool("gobuster",
                     ["gobuster", "dir",
                      "-u", target.url,
                      "-w", wordlist,
@@ -279,19 +331,34 @@ def run_gobuster(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> T
                      "-q"],
                     timeout=300)
 
+    # Save raw output to evidence
+    if result.ok and Path(out).exists():
+        content = Path(out).read_text()
+        Path(dirs.evidence / "gobuster.txt").write_text(content)
+
+    return result
+
 
 def run_sslscan(target: Target, dirs: ScanDirs) -> ToolResult:
     bin_path = _tool("sslscan")
     if not bin_path:
         return ToolResult(tool="sslscan", status=ToolStatus.SKIPPED, error="not installed")
-    return run_tool("sslscan",
+    result = run_tool("sslscan",
                     ["sslscan", "--no-colour", target.domain],
                     timeout=60,
                     output_file=dirs.raw_file(f"sslscan_{target.domain}.txt"))
 
+    # Save raw output to evidence
+    out = dirs.raw_file(f"sslscan_{target.domain}.txt")
+    if result.ok and Path(out).exists():
+        content = Path(out).read_text()
+        Path(dirs.evidence / "sslscan.txt").write_text(content)
+
+    return result
+
 
 def run_curl_headers(target: Target, dirs: ScanDirs) -> ToolResult:
-    return run_tool("curl",
+    result = run_tool("curl",
                     ["curl", "-s", "-I", "-L",
                      "--max-redirs", "5",
                      "-A", _ua(),
@@ -300,6 +367,14 @@ def run_curl_headers(target: Target, dirs: ScanDirs) -> ToolResult:
                      target.url],
                     timeout=20,
                     output_file=dirs.raw_file(f"curl_headers_{target.domain}.txt"))
+
+    # Save raw output to evidence
+    out = dirs.raw_file(f"curl_headers_{target.domain}.txt")
+    if result.ok and Path(out).exists():
+        content = Path(out).read_text()
+        Path(dirs.evidence / "curl_headers.txt").write_text(content)
+
+    return result
 
 
 def run_nuclei(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> ToolResult:
@@ -325,7 +400,14 @@ def run_nuclei(target: Target, dirs: ScanDirs, mode: str = MODE_BALANCED) -> Too
         ]
         timeout = 300
 
-    return run_tool("nuclei", cmd, timeout=timeout)
+    result = run_tool("nuclei", cmd, timeout=timeout)
+
+    # Save raw output to evidence
+    if result.ok and Path(out).exists():
+        content = Path(out).read_text()
+        Path(dirs.evidence / "nuclei.txt").write_text(content)
+
+    return result
 
 
 # ── Nmap XML parser ───────────────────────────────────────────────────────────

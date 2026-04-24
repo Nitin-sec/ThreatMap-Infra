@@ -160,12 +160,14 @@ class ScanDirs:
         raw/        → nmap.xml, nikto.txt, whatweb.json, ...
         parsed/     → structured JSON intermediates
         report/     → final HTML / Excel output
+        evidence/   → raw tool outputs for audit
     """
     root:   Path
     logs:   Path
     raw:    Path
     parsed: Path
     report: Path
+    evidence: Path
 
     @classmethod
     def create(cls, base: str, target: str, timestamp: str = None) -> "ScanDirs":
@@ -187,8 +189,9 @@ class ScanDirs:
             raw    = root / "raw",
             parsed = root / "parsed",
             report = root / "report",
+            evidence = root / "evidence",
         )
-        for d in [dirs.logs, dirs.raw, dirs.parsed, dirs.report]:
+        for d in [dirs.logs, dirs.raw, dirs.parsed, dirs.report, dirs.evidence]:
             d.mkdir(parents=True, exist_ok=True)
 
         log.debug("[env] scan dir: %s", root)
@@ -207,8 +210,8 @@ class ScanDirs:
         return str(self.raw)
 
     @property
-    def report_dir(self) -> str:
-        return str(self.report)
+    def evidence_dir(self) -> str:
+        return str(self.evidence)
 
     def raw_file(self, name: str) -> str:
         return str(self.raw / name)

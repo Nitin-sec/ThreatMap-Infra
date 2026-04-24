@@ -98,6 +98,7 @@ def export_excel(json_path: str, output_dir: str) -> Optional[str]:
 
     try:
         import openpyxl
+        from openpyxl.styles import Font, Border, Side, Alignment, PatternFill
     except Exception:
         _e("Excel export unavailable: install/openpyxl dependency issue.")
         return None
@@ -107,42 +108,100 @@ def export_excel(json_path: str, output_dir: str) -> Optional[str]:
     report_data = json.loads(Path(json_path).read_text(encoding="utf-8"))
     findings = report_data.get("findings", [])
     summary = report_data.get("summary", {})
+    meta = report_data.get("meta", {})
     total_findings = int(report_data.get("total", len(findings)))
     total_hosts = len({f"{f.get('host', '')}" for f in findings if f.get("host")})
 
     workbook = openpyxl.Workbook()
+
+    # Sheet 1: Executive Summary
     ws_summary = workbook.active
-    ws_summary.title = "Summary"
-    ws_summary.append(["Metric", "Value"])
-    ws_summary.append(["Total Hosts", total_hosts])
-    ws_summary.append(["Total Findings", total_findings])
-    ws_summary.append(["Critical", int(summary.get("Critical", 0))])
-    ws_summary.append(["High", int(summary.get("High", 0))])
-    ws_summary.append(["Medium", int(summary.get("Medium", 0))])
-    ws_summary.append(["Low", int(summary.get("Low", 0))])
-    ws_summary.append(["Info", int(summary.get("Info", 0))])
-    ws_summary.freeze_panes = "A2"
+    ws_summary.title = "Executive Summary"
 
-    ws = workbook.create_sheet("Vulnerabilities")
-    ws.append(["Host", "Port", "Severity", "Description", "Remediation", "Confidence"])
-    for finding in findings:
-        ws.append([
-            finding.get("host", ""),
-            finding.get("port", ""),
+    # Title
+    ws_summary['A1'] = "THREATMAP"
+    ws_summary['A1'].font = Font(size=24, bold=True)
+    ws_summary.merge_cells('A1:E1')
+
+    # Meta info
+    ws_summary['A3'] = "Target:"
+    ws_summary['B3'] = meta.get("target", "Unknown")
+    ws_summary['A4'] = "Date:"
+    ws_summary['B4'] = meta.get("generated_at", "")[:10]
+    ws_summary['A5'] = "Scan Mode:"
+    ws_summary['B5'] = meta.get("scan_mode", "").title()
+
+    # Severity counts with colors
+    ws_summary['A7'] = "Severity"
+    ws_summary['B7'] = "Count"
+    ws_summary['A7'].font = Font(bold=True)
+    ws_summary['B7'].font = Font(bold=True)
+
+    severities = [("Critical", "FFC7CE"), ("High", "FFDAB9"), ("Medium", "FFFF99"), ("Low", "C6EFCE"), ("Info", "BDD7EE")]
+    row = 8
+    for sev, color in severities:
+        count = int(summary.get(sev, 0))
+        ws_summary[f'A{row}'] = sev
+        ws_summary[f'B{row}'] = count
+        ws_summary[f'B{row}'].fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+        row += 1
+
+    # Auto width for summary
+    for col in ['A', 'B']:
+        ws_summary.column_dimensions[col].width = 15
+
+    # Sheet 2: Findings
+    ws = workbook.create_sheet("Findings")
+    headers = ["No", "Finding", "Host", "Details", "Severity", "Confidence", "Remediation"]
+    ws.append(headers)
+    for c in ws[1]:
+        c.font = Font(bold=True)
+        c.border = Border(bottom=Side(style='thin'))
+
+    severity_colors = {
+        "Critical": "FFC7CE",
+        "High": "FFDAB9",
+        "Medium": "FFFF99",
+        "Low": "C6EFCE",
+        "Info": "BDD7EE"
+    }
+
+    for i, finding in enumerate(findings, 1):
+        row = [
+            i,
+            finding.get("observation", ""),
+            f"{finding.get('host', '')}:{finding.get('port', '')}",
+            finding.get("detail", ""),
             finding.get("severity", ""),
-            finding.get("observation", "") or finding.get("detail", ""),
-            finding.get("remediation", ""),
             finding.get("confidence", "Medium"),
-        ])
+            finding.get("remediation", "")
+        ]
+        ws.append(row)
+        # Color the severity cell
+        sev_cell = ws.cell(row=i+1, column=5)
+        color = severity_colors.get(finding.get("severity", ""), "FFFFFF")
+        sev_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
 
-    for sheet in (ws_summary, ws):
-        for c in sheet[1]:
-            c.font = openpyxl.styles.Font(bold=True)
-        sheet.freeze_panes = "A2"
-        for col_cells in sheet.columns:
-            col_letter = col_cells[0].column_letter
-            width = max(len(str(cell.value or "")) for cell in col_cells)
-            sheet.column_dimensions[col_letter].width = min(max(width + 2, 12), 48)
+    # Formatting
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(wrap_text=True, vertical='top')
+            cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    # Auto column width
+    for col_num, col in enumerate(ws.columns, 1):
+        max_length = 0
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max(max_length + 2, 12), 48)
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = adjusted_width
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
 
     xlsx_path = out_dir / f"{Path(json_path).stem}.xlsx"
     workbook.save(xlsx_path)
