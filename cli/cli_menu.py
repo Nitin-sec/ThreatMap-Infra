@@ -40,10 +40,10 @@ Q = questionary.Style([
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _ok(msg):   console.print(f"  [bold green][[+]][/bold green]  {msg}")
-def _w(msg):    console.print(f"  [bold yellow][[!]][/bold yellow]  {msg}")
-def _e(msg):    console.print(f"  [bold red][[-]][/bold red]  {msg}")
-def _i(msg):    console.print(f"  [bold blue][[*]][/bold blue]  {msg}")
+def _ok(msg):   console.print(msg)
+def _w(msg):    console.print(msg)
+def _e(msg):    console.print(msg)
+def _i(msg):    console.print(msg)
 
 
 def open_in_browser(html_path: str) -> bool:
@@ -251,7 +251,7 @@ def show_logs(log_path: str, tail_lines: int = 30) -> None:
 
 def show_report_paths(paths: dict[str, str]) -> None:
     """Print all generated report paths in a clean table."""
-    console.print(Panel.fit("[bold green]Generated Reports[/bold green]", expand=False))
+    console.print(Panel.fit("[bold green]Generated Reports[/bold green]"))
     labels = {"html":"HTML Report ","txt":"Text Report ","json":"JSON Data   "}
     for fmt, path in paths.items():
         label = labels.get(fmt, fmt.upper())
@@ -294,7 +294,7 @@ class PostScanMenu:
             open_in_browser(html)
             console.print()
 
-        console.print(Panel.fit("[dim]What would you like to do?[/dim]", expand=False))
+        console.print(Panel.fit("[dim]What would you like to do?[/dim]"))
         console.print()
 
         while True:

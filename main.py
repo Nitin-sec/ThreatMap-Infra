@@ -57,10 +57,10 @@ Q = questionary.Style([
 ])
 
 
-def _i(msg):  console.print(f"  [bold blue][[*]][/bold blue]  {msg}")
-def _ok(msg): console.print(f"  [bold green][[+]][/bold green]  {msg}")
-def _w(msg):  console.print(f"  [bold yellow][[!]][/bold yellow]  {msg}")
-def _e(msg):  console.print(f"  [bold red][[-]][/bold red]  {msg}")
+def _i(msg):  console.print(msg)
+def _ok(msg): console.print(msg)
+def _w(msg):  console.print(msg)
+def _e(msg):  console.print(msg)
 
 
 def _banner() -> None:
@@ -178,15 +178,14 @@ def main() -> str:
 
     # 7. SCAN
     with Progress(
-        TextColumn("  [bold blue][[*]][/bold blue]  "
-                   "[progress.description]{task.description:<28}"),
+        TextColumn("[progress.description]{task.description:<28}"),
         SpinnerColumn(spinner_name="dots", style="red"),
         BarColumn(bar_width=22, complete_style="red", finished_style="green"),
         TaskProgressColumn(), TimeElapsedColumn(),
         console=console, transient=False,
     ) as progress:
 
-        disc = progress.add_task("Discovery: Target Expansion", total=3)
+        disc = progress.add_task("Discovery: Target expansion", total=3)
         if full_scan:
             subs = ScannerKit.discover_subdomains(target, dirs)
             progress.advance(disc); progress.advance(disc)
@@ -196,7 +195,7 @@ def main() -> str:
             live_hosts = [target.url]
             progress.update(disc, completed=3)
 
-        task_scan    = progress.add_task("Scanning: Host & Port Analysis", total=len(live_hosts))
+        task_scan    = progress.add_task("Scanning: Host & port analysis", total=len(live_hosts))
         orchestrator = ParallelOrchestrator(mode=mode)
         scan_results : dict[str,dict] = {}
         lock = threading.Lock()
@@ -220,12 +219,12 @@ def main() -> str:
             progress.advance(task_db)
 
         http_hosts = [h for h in host_id_map if h.startswith("http")]
-        task_ev = progress.add_task("Web analysis: HTTP Evidence Collection", total=max(len(http_hosts),1))
+        task_ev = progress.add_task("Web analysis: HTTP evidence collection", total=max(len(http_hosts),1))
         if http_hosts:
             EvidenceCollector().probe_hosts(hosts=http_hosts, output_dir=dirs.report_dir)
         progress.update(task_ev, completed=max(len(http_hosts),1))
 
-        task_ai = progress.add_task("Vulnerability analysis: Risk Classification", total=1)
+        task_ai = progress.add_task("Vulnerability analysis: Risk classification", total=1)
         with contextlib.redirect_stderr(io.StringIO()):
             run_ai_triage(db=db, scan_id=scan_id, raw_dir=dirs.raw_dir, report_dir=dirs.report_dir)
         progress.advance(task_ai)
