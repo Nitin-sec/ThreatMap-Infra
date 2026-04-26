@@ -1,171 +1,97 @@
-# threatmap
+# ThreatMap
 
-**Automated VAPT + EASM CLI Scanner with AI-assisted reporting**
-
-ThreatMap is a terminal-first security tool that automates:
-
-**Discovery → Scanning → Evidence → Reporting → Intelligence**
-
-Built for:
-
-* security engineers
-* developers
-* students
-* bug bounty hunters
+**Not another vulnerability scanner.**
+ThreatMap is a workflow engine that turns raw scan outputs into structured findings and actionable intelligence.
 
 ---
 
-##  Why ThreatMap?
+## What it is
 
-Most tools:
+ThreatMap automates: discovery, evidence collection, local SLM analysis, and report generation from a clean CLI workflow.
 
-* give raw outputs
-* require manual correlation
-* are hard to interpret
-
-**ThreatMap does it differently:**
-
-*  Automated multi-tool orchestration (Nmap, Nuclei, etc.)
-*  Clean reports (HTML, JSON, TXT, Excel)
-*  Evidence-ready outputs for audits
-*  Local AI (SLM) for explanations + remediation
-*  Smooth CLI UX (no repeated commands)
+- Converts raw tool outputs into prioritized findings
+- Produces HTML, Excel, and evidence logs
+- Keeps analysis local with no external API dependency
+- Designed for developers and security engineers, not endless tool spam
 
 ---
 
-##  Quick Start
+## Screenshots
+
+| CLI run | HTML report | Excel export |
+|---|---|---|
+| ![CLI run](https://via.placeholder.com/320x180?text=CLI+run) | ![HTML report](https://via.placeholder.com/320x180?text=HTML+report) | ![Excel output](https://via.placeholder.com/320x180?text=Excel+output) |
+
+---
+
+## Features
+
+- Structured output from raw recon and scan results
+- Local SLM-based analysis for vulnerability context
+- HTML report and Excel export ready for sharing
+- Evidence logs for auditing and review
+- Minimal CLI experience with guided scan flow
+
+---
+
+## Installation
 
 ```bash
-git clone https://github.com/Nitin-sec/threatmap.git
-cd threatmap
-
 ./install.sh
 ./threatmap
 ```
 
-> `install.sh` sets up the Python environment, installs requirements, and verifies required scanner tools.
+> One command to install, one command to start.
 
 ---
 
-##  Usage Flow
+## Usage example
 
-```text
-Start → Enter target → Confirm authorization → Scan → Reports → Menu
+```bash
+./threatmap
 ```
 
-After scan:
-
-```text
-What would you like to do?
-
-▶ Continue Scanning
-  Open HTML Report
-  Export Excel
-  View Logs
-  Exit
-```
-
- No need to rerun the tool
- Continuous scanning session supported
+1. Enter target or asset list
+2. Confirm authorization
+3. Review discovered assets and scan progress
+4. Open HTML report or export Excel
 
 ---
 
-##  Example Output
+## Outputs
 
-<img width="637" height="221" alt="image" src="https://github.com/user-attachments/assets/6d06332d-0e23-408f-a546-cd5fb3489eec" />
-
----
-
-<img width="728" height="337" alt="image" src="https://github.com/user-attachments/assets/da22677a-5ca1-4131-b24a-8f65f631288e" />
-
-
-###  Scan Progress
-
-* Discovery
-* Port Scanning
-* Web Analysis
-* Vulnerability Analysis
-
-###  Reports
-
-* HTML (human-friendly)
-* Excel (client-ready)
-* JSON (machine-readable)
+- **HTML** — readable, structured report for review
+- **Excel** — exportable findings for stakeholders
+- **Logs / Evidence** — raw proof from each scan step
 
 ---
 
-##  Output Structure
+## Workflow
 
-```text
-scans/<target_timestamp>/
-├── raw/        → tool outputs
-├── logs/       → execution logs
-├── evidence/   → raw proof (nmap, nuclei, etc.)
-├── report/     → final reports
-```
+1. **Discovery** — find assets and targets
+2. **Scanning** — run the right tools automatically
+3. **Evidence** — collect raw proofs and artifacts
+4. **Analysis** — apply local SLM insights and structure findings
+5. **Reporting** — generate HTML, Excel, and logs
 
 ---
 
-##  AI (Local SLM)
+## Why ThreatMap?
 
-ThreatMap uses **local models** for:
-
-* vulnerability explanation
-* remediation suggestions
-* contextual insights
-
- No API keys
- No external data sharing
- Fully local
-
-> If SLM is unavailable, ThreatMap falls back to structured analysis.
+- Not just scanning → structured, actionable output
+- Built for developers and security teams, not tool collectors
+- Local SLM analysis with zero API calls
+- Clean CLI UX instead of long tool chains
 
 ---
 
-## ⚠️ Legal Disclaimer
+## Disclaimer
 
-This tool is for **authorized security testing only**.
-
-Allowed:
-
-* your own systems
-* client engagements
-* bug bounty scope
-* labs (HTB, THM, etc.)
-
-Unauthorized scanning is illegal.
+Use only on systems you own or are authorized to test. Unauthorized scanning is illegal.
 
 ---
 
-## 🛠️ Requirements
+## Contributing
 
-* Linux (Kali recommended)
-* Python 3.10+
-* Go tools (auto-installed)
-* Optional: Minimum 4GB RAM for SLM
+Issues, fixes, and feature ideas are welcome. Send a PR or open an issue to improve the workflow.
 
----
-
-##  Tools Used
-
-* Nmap
-* Nuclei
-* Subfinder
-* Assetfinder
-* Nikto
-* WhatWeb
-
----
-
-##  Contributing
-
-Open to improvements, ideas, and collaboration.
-
----
-
-##  If you like this project
-
-Give it a star ⭐
-It helps a lot.
-
----
